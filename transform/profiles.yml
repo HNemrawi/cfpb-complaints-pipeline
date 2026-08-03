@@ -1,0 +1,18 @@
+cpulse:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: '../warehouse/dev.duckdb'
+      schema: main
+      threads: 4
+    ci:
+      type: duckdb
+      path: '../warehouse/ci.duckdb'
+      schema: main
+      threads: 4
+    prod:
+      type: duckdb
+      path: '../warehouse/prod.duckdb'
+      schema: main
+      threads: 8

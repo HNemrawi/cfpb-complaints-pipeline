@@ -1,0 +1,35 @@
+name: 'cpulse'
+version: '1.0.0'
+profile: 'cpulse'            # must match a key in profiles.yml
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+analysis-paths: ["analyses"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+vars:
+  start_date: '2020-01-01'     # full history for prod
+  dev_lookback_days: 90        # dev only looks at a recent window
+
+models:
+  cpulse:
+    +materialized: view        # project-wide default
+    staging:
+      +materialized: view
+      +tags: ['staging']
+    intermediate:
+      +materialized: ephemeral
+    marts:
+      +materialized: table
+      core:
+        +tags: ['core']
+      reporting:
+        +tags: ['reporting']
+
+seeds:
+  cpulse:
+    +quote_columns: false

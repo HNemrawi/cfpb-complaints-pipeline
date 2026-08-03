@@ -1,0 +1,31 @@
+# Python
+.venv/
+__pycache__/
+
+# dbt
+target/
+dbt_packages/
+logs/
+
+# Data — never commit the warehouse or raw files
+warehouse/*.duckdb
+data/raw/
+
+# Secrets & OS noise
+.env
+.DS_Store
+
+# Claude Code — all Claude-related files stay local, nothing is tracked
+.claude/
+CLAUDE.md
+.mcp.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+NOTES.md
+README.md
+
+plan/

@@ -1,0 +1,21 @@
+version: 2
+
+models:
+  - name: stg_cfpb__complaints
+    description: "One row per complaint. Renamed, cast, filtered to the reporting window. The only model that reads the CFPB source."
+    columns:
+      - name: complaint_id
+        description: "CFPB-assigned complaint identifier. Primary key."
+        data_tests:
+          - unique
+          - not_null
+      - name: received_date
+        description: "Date the CFPB received the complaint."
+        data_tests: [not_null]
+      - name: submission_channel
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Web', 'Phone', 'Referral', 'Postal mail', 'Fax', 'Email', 'Web Referral']
+      - name: state_code
+        description: "Two-letter state or territory code. Null for international and withheld addresses."

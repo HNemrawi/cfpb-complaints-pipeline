@@ -22,7 +22,13 @@ renamed as (
 
         -- parties & place
         nullif(trim("Company"), '')                     as company_name_raw,
-        upper(nullif(trim("State"), ''))                as state_code,
+        -- 'NONE' is a source sentinel meaning no state was given; 'UNITED STATES
+        -- MINOR OUTLYING ISLANDS' is the full name of the jurisdiction coded UM.
+        case upper(nullif(trim("State"), ''))
+            when 'NONE'                                 then null
+            when 'UNITED STATES MINOR OUTLYING ISLANDS' then 'UM'
+            else upper(nullif(trim("State"), ''))
+        end                                             as state_code,
         nullif(trim("ZIP code"), '')                    as zip_code,
         nullif(trim("Submitted via"), '')               as submission_channel,
 

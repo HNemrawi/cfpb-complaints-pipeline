@@ -1,0 +1,150 @@
+version: 2
+
+models:
+  - name: dim_company
+    description: >
+      One row per canonical company. Companies are canonicalised through
+      seed_company_name_overrides, which maps CFPB's registered legal entity
+      names to the brand names humans recognise; unmatched companies fall back to
+      their raw name via coalesce.
+    columns:
+      - name: company_key
+        description: "Surrogate key: hash of the canonical company_name. Joined from fct_complaints."
+        data_tests: [unique, not_null]
+      - name: company_name
+        description: >
+          Canonical (brand) company name. Tested unique as well as the key,
+          because unique on an opaque hash proves the hash is distinct while
+          unique here proves the grain claim in terms a human can read — and when
+          it fails it names the company instead of a 32-character digest.
+        data_tests: [unique, not_null]
+      - name: name_variant_count
+        description: >
+          How many raw spellings collapsed into this canonical name. 1 for almost
+          every company: CFPB canonicalises names upstream at complaint-routing
+          time, so as of 2026-08-05 exactly one company (V.I.P. Mortgage) has 2.
+        data_tests: [not_null]
+
+  - name: dim_date
+    description: >
+      One row per calendar day from var('start_date') through today, with no
+      gaps. Built from int_dates__spine (ephemeral). Exists so that a period with
+      zero complaints becomes an explicit zero rather than a missing row — the
+      most common silently-wrong chart in analytics.
+    columns:
+      - name: date_day
+        description: "The day. Natural key — a date needs no surrogate. Joined from fct_complaints.received_date."
+        data_tests: [unique, not_null]
+      - name: year_number
+        description: "Calendar year."
+      - name: month_number
+        description: "Calendar month, 1-12."
+      - name: month_start_date
+        description: "First day of the month, cast to date. Group by this for monthly trends."
+      - name: quarter_start_date
+        description: "First day of the quarter, cast to date."
+      - name: year_month
+        description: "YYYY-MM label for axis display."
+        data_tests: [not_null]
+      - name: is_weekend
+        description: >
+          True for Saturday and Sunday (DuckDB dayofweek: 0=Sunday, 6=Saturday).
+          Tested not_null because it is the only column here derived by an
+          expression that could return null if the input type shifted.
+        data_tests: [not_null]
+
+  - name: dim_product
+    description: >
+      One row per product / sub-product pair present in the complaint data, with
+      the dashboard display group joined from seed_product_groups. Composite
+      grain — this is the dimension that motivates a combination test rather
+      than a single-column unique.
+    data_tests:
+      # MODEL-level, not column-level. dbt passes column_name as a keyword
+      # argument to every column-level generic test, and this macro's signature
+      # does not accept one — nesting it under a column fails at compile with
+      # "takes no keyword argument 'column_name'". A test whose subject is a
+      # combination of columns has no single column to belong to.
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [product, sub_product]
+    columns:
+      - name: product_key
+        description: >
+          Surrogate key: hash of (product, sub_product). Generated with
+          dbt_utils.generate_surrogate_key rather than concatenation, because
+          sub_product is legitimately null and 'Mortgage' || null is null —
+          a hand-rolled key would collapse every sub-product-less product onto
+          one null key and still pass a unique test.
+        data_tests: [unique, not_null]
+      - name: product
+        description: "Raw CFPB product value, verbatim. Part of the grain."
+        data_tests: [not_null]
+      - name: sub_product
+        description: >
+          Raw CFPB sub-product, null for products with no breakdown. Part of the
+          grain — the uniqueness test for that grain is declared at model level
+          above, because neither column is unique alone and a combination test
+          belongs to no single column.
+      - name: product_group
+        description: >
+          Dashboard display group from seed_product_groups. not_null is a
+          deliberate TRIPWIRE, not padding: the left join yields null the day
+          CFPB adds or renames a product the seed does not know, and this test
+          then fails the build. The alternative is a dashboard quietly filing new
+          complaints under a blank category. Fix by adding a seed row via PR —
+          the seed is business-owned.
+        data_tests: [not_null]
+      - name: display_order
+        description: "Sort order for the display group, from the seed."
+        data_tests: [not_null]
+
+  - name: dim_state
+    description: >
+      One row per US state, federal district, territory, freely associated state
+      and military postal code — 63 rows, built from seed_state_population rather
+      than from the complaint data. Deliberate: a jurisdiction with zero
+      complaints still gets a row, so a map reads it as zero instead of dropping
+      it (3 codes — MH, FM, MP — have no complaints as of 2026-08-05). Same
+      argument as the date spine, one dimension over.
+    columns:
+      - name: state_code
+        description: >
+          USPS two-character code. NATURAL key, deliberately not hashed: short,
+          stable, already uppercased in staging, readable when debugging, and
+          fct_complaints already carries it. Hashing would buy nothing and cost
+          readability.
+        data_tests: [unique, not_null]
+      - name: state_name
+        description: "Display name for the dashboard."
+        data_tests: [not_null]
+      - name: census_region
+        description: >
+          One of the four US Census regions; null for territories, freely
+          associated states and military codes, which Census does not assign to a
+          region. Validated by accepted_values on the seed.
+      - name: jurisdiction_type
+        description: >
+          state / district / territory / freely_associated_state / military. Kept
+          as seed reference data rather than a case expression here, because it
+          is a descriptive fact about a place, not logic. accepted_values is NOT
+          repeated on this model: dim_state passes the column through untouched,
+          so the seed's test already guards every value that can reach here.
+          Re-testing an unchanged pass-through is noise that dilutes a suite.
+        data_tests: [not_null]
+      - name: population
+        description: >
+          Resident population, US Census Bureau Vintage 2025 estimates. NULLABLE
+          BY DESIGN and deliberately untested for not_null — 11 of 63 rows carry
+          no defensible figure (island areas needing a Census API key, freely
+          associated states Census does not publish, and jurisdictions with no
+          resident population). See the seed's SOURCE note. NULL here means
+          "unknown", never zero.
+      - name: is_unpopulated
+        description: >
+          True where population is null. The only derived column in this model.
+          Encodes one rule — "this row has no denominator, keep it out of
+          per-capita maths" — in one place, instead of three aggregates each
+          having to remember it. A per-capita rate divided by null silently
+          disappears from a chart rather than erroring.
+        data_tests: [not_null]

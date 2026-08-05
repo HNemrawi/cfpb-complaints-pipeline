@@ -16,6 +16,68 @@ seeds:
         description: "Dashboard display group."
         data_tests: [not_null]
 
+  - name: seed_state_population
+    description: >
+      One row per US state, federal district, territory, freely associated state
+      and military postal code. The reference list dim_state is built from —
+      deliberately NOT derived from the complaint data, so a jurisdiction with
+      zero complaints still gets a row and reads as "zero" rather than vanishing
+      from the map. Census-sourced rather than business-owned: refresh it by
+      re-downloading the newest NST-EST vintage, not by editing rows by hand.
+      SOURCE: US Census Bureau Vintage 2025 population estimates (column
+      POPESTIMATE2025, as of July 1 2025), file NST-EST2025-ALLDATA.csv, retrieved
+      2026-08-05 from https://www2.census.gov/programs-surveys/popest/datasets/2020-2025/state/totals/NST-EST2025-ALLDATA.csv
+      census_region comes from that file's own REGION codes (1=Northeast,
+      2=Midwest, 3=South, 4=West) rather than being assigned by hand.
+      population is filled for exactly the 52 jurisdictions that file covers — the
+      50 states, DC and Puerto Rico — and NULL for the other 11 rows, for three
+      distinct reasons: Census requires an API key for the 2020 Island Areas
+      Censuses (GU, VI, AS, MP); Census does not publish the freely associated
+      states at all (PW, FM, MH); and UM plus the AA/AE/AP military postal codes
+      have no resident population to publish. A NULL here means "no defensible
+      figure", never zero — dim_state's is_unpopulated flag is what keeps those
+      rows out of per-capita maths.
+    config:
+      column_types:
+        population: integer      # inference would guess wrong on the blank rows
+    columns:
+      - name: state_code
+        description: >
+          USPS two-character code. The natural key — dim_state does not hash it,
+          and fct_complaints joins on it directly. Must match stg_cfpb__complaints
+          exactly, which is why staging normalises 'UNITED STATES MINOR OUTLYING
+          ISLANDS' to 'UM' and the 'NONE' sentinel to null.
+        data_tests: [unique, not_null]
+      - name: state_name
+        description: "Display name for the dashboard."
+        data_tests: [not_null]
+      - name: census_region
+        description: >
+          One of the four US Census regions. NULL for territories, freely
+          associated states and military codes, which Census does not assign to a
+          region. Note that accepted_values ignores nulls, so this test proves the
+          non-null values are valid and says nothing about the blanks.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Northeast', 'Midwest', 'South', 'West']
+      - name: jurisdiction_type
+        description: >
+          What kind of jurisdiction this is. Kept as reference data rather than a
+          case expression in dim_state: it is a descriptive fact about a place,
+          not logic.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['state', 'district', 'territory', 'freely_associated_state', 'military']
+      - name: population
+        description: >
+          Resident population, Census Vintage 2025. NULL for 11 of 63 rows — see
+          the SOURCE note above for the three separate reasons. Deliberately NOT
+          tested for not_null: the nulls are the point, and a not_null here would
+          pressure someone into inventing numbers to make the build pass.
+
   - name: seed_company_name_overrides
     description: >
       One row per non-canonical company spelling. Maps CFPB's registered legal
@@ -32,7 +94,16 @@ seeds:
           Raw company_name_raw value to override, spelled exactly as it appears in
           stg_cfpb__complaints. List variants only, never the canonical form —
           dim_company coalesces unmatched rows back to their raw name.
-        data_tests: [not_null]
+          The relationships test closes this seed's fail-open hole: without it a
+          typo'd variant_name simply never matches, the override silently
+          no-ops, and the dashboard keeps showing the legal entity name with
+          nothing anywhere reporting a problem.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_cfpb__complaints')
+                field: company_name_raw
       - name: canonical_name
         description: "Brand name shown to humans. Becomes the input to dim_company's surrogate key."
         data_tests: [not_null]

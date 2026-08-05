@@ -1,0 +1,64 @@
+state_code,state_name,census_region,jurisdiction_type,population
+AL,Alabama,South,state,5193088
+AK,Alaska,West,state,737270
+AZ,Arizona,West,state,7623818
+AR,Arkansas,South,state,3114791
+CA,California,West,state,39355309
+CO,Colorado,West,state,6012561
+CT,Connecticut,Northeast,state,3688496
+DE,Delaware,South,state,1059952
+DC,District of Columbia,South,district,693645
+FL,Florida,South,state,23462518
+GA,Georgia,South,state,11302748
+HI,Hawaii,West,state,1432820
+ID,Idaho,West,state,2029733
+IL,Illinois,Midwest,state,12719141
+IN,Indiana,Midwest,state,6973333
+IA,Iowa,Midwest,state,3238387
+KS,Kansas,Midwest,state,2977220
+KY,Kentucky,South,state,4606864
+LA,Louisiana,South,state,4618189
+ME,Maine,Northeast,state,1414874
+MD,Maryland,South,state,6265347
+MA,Massachusetts,Northeast,state,7154084
+MI,Michigan,Midwest,state,10127884
+MN,Minnesota,Midwest,state,5830405
+MS,Mississippi,South,state,2954160
+MO,Missouri,Midwest,state,6270541
+MT,Montana,West,state,1144694
+NE,Nebraska,Midwest,state,2018006
+NV,Nevada,West,state,3282188
+NH,New Hampshire,Northeast,state,1415342
+NJ,New Jersey,Northeast,state,9548215
+NM,New Mexico,West,state,2125498
+NY,New York,Northeast,state,20002427
+NC,North Carolina,South,state,11197968
+ND,North Dakota,Midwest,state,799358
+OH,Ohio,Midwest,state,11900510
+OK,Oklahoma,South,state,4123288
+OR,Oregon,West,state,4273586
+PA,Pennsylvania,Northeast,state,13059432
+RI,Rhode Island,Northeast,state,1114521
+SC,South Carolina,South,state,5570274
+SD,South Dakota,Midwest,state,935094
+TN,Tennessee,South,state,7315076
+TX,Texas,South,state,31709821
+UT,Utah,West,state,3538904
+VT,Vermont,Northeast,state,644663
+VA,Virginia,South,state,8880107
+WA,Washington,West,state,8001020
+WV,West Virginia,South,state,1766147
+WI,Wisconsin,Midwest,state,5972787
+WY,Wyoming,West,state,588753
+PR,Puerto Rico,,territory,3184835
+VI,U.S. Virgin Islands,,territory,
+GU,Guam,,territory,
+AS,American Samoa,,territory,
+MP,Northern Mariana Islands,,territory,
+UM,United States Minor Outlying Islands,,territory,
+PW,Palau,,freely_associated_state,
+FM,Federated States of Micronesia,,freely_associated_state,
+MH,Marshall Islands,,freely_associated_state,
+AA,Armed Forces Americas,,military,
+AE,Armed Forces Europe,,military,
+AP,Armed Forces Pacific,,military,

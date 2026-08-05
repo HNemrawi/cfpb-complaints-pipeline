@@ -1,0 +1,17 @@
+version: 2
+
+seeds:
+  - name: seed_product_groups
+    description: >
+      One row per CFPB product. Maps the raw product taxonomy to the display
+      groups used on the dashboard. Business-owned; changes arrive as PRs.
+    config:
+      column_types:
+        display_order: integer
+    columns:
+      - name: product
+        description: "Raw CFPB product value, verbatim. Must match staging exactly."
+        data_tests: [unique, not_null]
+      - name: product_group
+        description: "Dashboard display group."
+        data_tests: [not_null]

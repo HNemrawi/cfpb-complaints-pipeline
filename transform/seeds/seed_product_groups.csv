@@ -1,0 +1,12 @@
+product,product_group,display_order
+Credit reporting or other personal consumer reports,Credit reporting,1
+Debt collection,Debt collection,2
+Debt or credit management,Debt collection,2
+Credit card,Cards,3
+Prepaid card,Cards,3
+Checking or savings account,Deposits,4
+"Money transfer, virtual currency, or money service",Payments,5
+Mortgage,Mortgage,6
+Vehicle loan or lease,Consumer lending,7
+"Payday loan, title loan, personal loan, or advance loan",Consumer lending,7
+Student loan,Consumer lending,7

@@ -15,3 +15,33 @@ seeds:
       - name: product_group
         description: "Dashboard display group."
         data_tests: [not_null]
+
+  - name: seed_company_name_overrides
+    description: >
+      One row per non-canonical company spelling. Maps CFPB's registered legal
+      entity names to the brand names shown on the dashboard, plus the genuine
+      spelling variants. Business-owned; changes arrive as PRs.
+      Scope note: CFPB canonicalises company names upstream at complaint-routing
+      time, so true spelling variants are near-absent — 1 pair in 2,555 companies
+      as of 2026-08-05. This seed therefore exists mainly for display naming, not
+      de-duplication. No column_types pin: both columns are text and inference
+      cannot get that wrong.
+    columns:
+      - name: variant_name
+        description: >
+          Raw company_name_raw value to override, spelled exactly as it appears in
+          stg_cfpb__complaints. List variants only, never the canonical form —
+          dim_company coalesces unmatched rows back to their raw name.
+        data_tests: [not_null]
+      - name: canonical_name
+        description: "Brand name shown to humans. Becomes the input to dim_company's surrogate key."
+        data_tests: [not_null]
+
+      # Tested as an expression, not a plain `unique` on variant_name, because
+      # dim_company joins on upper(variant_name). A uniqueness test only prevents
+      # fan-out if it is unique under the same expression the join uses: plain
+      # `unique` would pass on 'EQUIFAX, INC.' + 'Equifax, Inc.' and the join
+      # would still match both. Subsumes the exact-duplicate case.
+      - name: "upper(variant_name)"
+        description: "Join-key expression used by dim_company. Not a stored column."
+        data_tests: [unique]

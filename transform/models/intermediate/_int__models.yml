@@ -1,0 +1,16 @@
+version: 2
+
+models:
+  - name: int_complaints__response_flags
+    description: >
+      One row per complaint. Response-classification logic (timeliness, relief,
+      response bucket) defined once for every downstream mart. Ephemeral — inlined
+      as a CTE into consumers; tests live on fct_complaints, which materializes
+      this logic.
+    columns:
+      - name: complaint_id
+        description: "Natural key of the complaint, passed through from staging."
+      - name: response_bucket
+        description: "Ordered classification of company_response; first match wins."
+      - name: days_to_company
+        description: "Days between receipt and forwarding to the company. Negative or null values possible in raw data."

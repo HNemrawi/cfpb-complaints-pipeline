@@ -21,8 +21,9 @@ An end-to-end analytics pipeline over the [CFPB Consumer Complaint Database](htt
 ## The star schema
 
 Complaints land in one fact table surrounded by four conformed dimensions, with three
-aggregates built one-per-dashboard-page. `dbt build` is green at **169 nodes, 0 warnings**,
-including `dbt_project_evaluator`.
+aggregates built one-per-dashboard-page. `dbt build` is green at **92 nodes, 0 warnings** —
+12 models, 3 seeds, 79 data tests, 1 exposure. The whole warehouse is 13 objects: these 12
+plus the raw source table.
 
 | Model | Grain | Rows |
 |---|---|---|
@@ -55,10 +56,28 @@ being collapsed by `seed_company_name_overrides` — the fix working, not a regr
 
 ## dbt_project_evaluator findings
 
-Module 2 closes with `dbt build --select package:dbt_project_evaluator` clean. Ten findings
-were raised; four were real gaps and were fixed, five are justified exceptions recorded in
+`dbt_project_evaluator` is a **linter, and it is off by default**. Unlike `dbt_utils`, which
+ships only macros and materialises nothing, the evaluator ships ~48 models — and on DuckDB the
+package materialises them as tables. Left enabled, every `dbt build` drops 48 objects into the
+same schema as the real project, sharing `stg_`/`int_`/`fct_` prefixes. So it runs on demand:
+
+```
+dbt build --select package:dbt_project_evaluator dbt_project_evaluator_exceptions \
+          --vars '{run_project_evaluator: true}'
+```
+
+That is clean at **78 nodes, 0 warnings**, and its output lands in
+`main_dbt_project_evaluator`, never in `main`. Module 7 wires the same command into CI, which
+is where a linter belongs.
+
+Ten findings were raised originally: four were real gaps and were fixed, one was resolved by
+configuring the rule, four are justified exceptions recorded in
 `seeds/dbt_project_evaluator_exceptions.csv` with reasons, and the two coverage warnings
 cleared once the gaps closed.
+
+**Resolved by configuration, not suppression**
+
+- `fct_model_naming_conventions` flagged all three `agg_` models because the package defaults `marts_prefixes` to `['fct_', 'dim_']`. This project's rulebook has always named `agg_` as a mart prefix, so `dbt_project.yml` sets `marts_prefixes: ['fct_', 'dim_', 'agg_']`. Teaching the linter the actual standard beats waiving the finding.
 
 **Fixed**
 
@@ -70,7 +89,6 @@ cleared once the gaps closed.
 
 | Finding | Why it stands |
 |---|---|
-| `fct_model_naming_conventions` (`agg_%`) | `agg_` is a documented mart prefix in this project's rulebook. The evaluator's default marts prefixes are `dim_`/`fct_` only; renaming three aggregates to `fct_` would make them indistinguishable from the actual fact table. |
 | `fct_model_fanout` (`fct_complaints` → 3) | By design — one aggregate per dashboard page. The rule targets a mart feeding fifteen near-identical exports. |
 | `fct_rejoining_of_upstream_concepts` | `is_loop_independent = True`: the fact takes base attributes from staging and only derived classification columns from the intermediate model. Removing the finding would mean pushing six pass-through columns through that model, turning it into the wide pass-through model the layer rules call the opposite smell. |
 | `fct_root_models` (`int_dates__spine`) | Legitimately parentless — a `dbt_utils.date_spine` call that generates rows from `var('start_date')` rather than reading a table. |

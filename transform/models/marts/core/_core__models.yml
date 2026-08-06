@@ -148,3 +148,88 @@ models:
           having to remember it. A per-capita rate divided by null silently
           disappears from a chart rather than erroring.
         data_tests: [not_null]
+
+  - name: fct_complaints
+    description: >
+      One row per complaint — the centre of the star, and the model Module 4
+      turns incremental. Row count must equal stg_cfpb__complaints exactly:
+      higher means a dimension is not unique and a join fanned out, lower means
+      an inner join is dropping rows. Every dimension is reached by a LEFT join
+      so a missing dimension row surfaces as a null foreign key that a test can
+      catch, rather than silently subtracting from the number on the dashboard.
+    columns:
+      - name: complaint_id
+        description: "Natural key of the complaint. The grain."
+        data_tests: [unique, not_null]
+      - name: received_date
+        description: "Date the complaint was received. Foreign key to dim_date."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: company_key
+        description: >
+          Foreign key to dim_company, resolved through
+          int_companies__canonical_names — the fact holds the raw legal-entity
+          name, the dimension is keyed on the canonical brand name, and the
+          intermediate model is the only place that maps between them.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_company')
+                field: company_key
+      - name: product_key
+        description: "Foreign key to dim_product, on (product, sub_product)."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: product_key
+      - name: state_code
+        description: >
+          Foreign key to dim_state. DELIBERATELY NULLABLE and deliberately NOT
+          tested for not_null: 1,732 complaints carry no state at all, which
+          staging now represents honestly as null after normalising the 'NONE'
+          sentinel. The relationships test below still guards every non-null
+          value — dbt's relationships test excludes nulls by construction — so
+          an unknown state cannot become an invalid one. The alternative was an
+          "unknown" member in dim_state, rejected because dim_state is a
+          Census-sourced list of real jurisdictions and inventing a fake USPS
+          code to satisfy a test is worse than a documented null.
+          Consequence to know: agg_state_summary excludes these 1,732 rows, so a
+          per-state total will not reconcile to a project-wide total.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_state')
+                field: state_code
+      - name: submission_channel
+        description: "How the complaint arrived (Web, Phone, Referral, Postal mail)."
+        data_tests: [not_null]
+      - name: response_bucket
+        description: >
+          Ordered classification of the company response, from
+          int_complaints__response_flags. 'no_response' is in the accepted list
+          but never occurs in current data — company_response has zero nulls —
+          which is precisely why that model is Module 5's unit-test target: a
+          data test cannot exercise an unreachable branch.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['explanation_only', 'in_progress', 'nonmonetary_relief', 'monetary_relief', 'other', 'no_response']
+      - name: is_timely
+        description: "Did the company respond within the CFPB's expected window."
+        data_tests: [not_null]
+      - name: got_relief
+        description: "Did the complaint close with monetary or non-monetary relief."
+        data_tests: [not_null]
+      - name: days_to_company
+        description: >
+          Days between receipt and forwarding to the company. Nullable and
+          untested for not_null: it depends on sent_to_company_date, which the
+          raw feed can leave empty. Zero nulls today, which is not a guarantee.

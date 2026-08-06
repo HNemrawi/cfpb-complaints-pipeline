@@ -13,9 +13,33 @@ clean-targets: ["target", "dbt_packages"]
 
 vars:
   start_date: '2020-01-01'     # full history for prod
-  dev_lookback_days: 90        # dev only looks at a recent window
+  dev_lookback_days: 90        # forward-declared; first consumed by the Module 3 macro
+
+  # Off by default — see the dbt_project_evaluator block under models:
+  run_project_evaluator: false
+
+  # Teach the linter this project's actual mart convention instead of waiving the
+  # finding. Its default is ['fct_', 'dim_'], which flags all three agg_ models;
+  # the rulebook has always named agg_ as a mart prefix.
+  marts_prefixes: ['fct_', 'dim_', 'agg_']
 
 models:
+  # dbt_project_evaluator is a LINTER, not part of the pipeline. Unlike dbt_utils
+  # (macros only, no warehouse footprint) it ships ~48 models, and on duckdb the
+  # package materializes them as TABLES. Left on, every `dbt build` drops 48
+  # objects into the same schema as the real project, sharing stg_/int_/fct_
+  # prefixes — fct_model_fanout beside fct_complaints — and the warehouse becomes
+  # unreadable.
+  #
+  # So: OFF by default, run on demand.
+  #   dbt build --select package:dbt_project_evaluator dbt_project_evaluator_exceptions \
+  #             --vars '{run_project_evaluator: true}'
+  # Module 7 wires that same command into CI, which is where a linter belongs.
+  # When it does run, its output lands in main_dbt_project_evaluator, not main.
+  dbt_project_evaluator:
+    +enabled: "{{ var('run_project_evaluator', false) }}"
+    +schema: dbt_project_evaluator
+
   cpulse:
     +materialized: view        # project-wide default
     staging:
@@ -33,6 +57,10 @@ models:
 seeds:
   cpulse:
     +quote_columns: false
+    # Our seed, but it is the linter's config — it lives and dies with the linter.
+    dbt_project_evaluator_exceptions:
+      +enabled: "{{ var('run_project_evaluator', false) }}"
+      +schema: dbt_project_evaluator
 
   # Only one seed may exist with a given name, so the package's blank
   # exceptions seed must be disabled for ours to take its place.

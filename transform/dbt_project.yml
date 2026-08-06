@@ -33,3 +33,10 @@ models:
 seeds:
   cpulse:
     +quote_columns: false
+
+  # Only one seed may exist with a given name, so the package's blank
+  # exceptions seed must be disabled for ours to take its place.
+  # See seeds/dbt_project_evaluator_exceptions.csv for the justifications.
+  dbt_project_evaluator:
+    dbt_project_evaluator_exceptions:
+      +enabled: false

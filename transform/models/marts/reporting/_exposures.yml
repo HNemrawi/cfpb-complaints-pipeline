@@ -1,0 +1,28 @@
+version: 2
+
+exposures:
+  - name: consumer_complaint_pulse
+    label: "Consumer Complaint Pulse"
+    type: dashboard
+    maturity: low
+    description: >
+      The three-page Evidence dashboard the whole DAG was derived backward from.
+      Page 1 Overview — volume trend with a product filter, fed by
+      agg_complaint_trends_monthly. Page 2 Companies — top-15 bar plus response
+      scorecard, fed by agg_company_scorecard. Page 3 Products & states —
+      product mix and a per-capita state map, fed by agg_state_summary.
+      Declaring it now closes the lineage graph: without an exposure the three
+      agg_ models have nothing downstream, which is indistinguishable from the
+      "unused model" anti-pattern that dbt_project_evaluator flags and this
+      project's own DAG rules say to delete. It also makes the blast radius of a
+      change visible — `dbt ls --select +exposure:consumer_complaint_pulse`
+      answers "what feeds the dashboard" without anyone having to remember.
+      No url yet: the Evidence project is built and deployed in Module 7, and a
+      placeholder link that 404s is worse than an absent one. maturity stays
+      "low" until then.
+    depends_on:
+      - ref('agg_complaint_trends_monthly')
+      - ref('agg_company_scorecard')
+      - ref('agg_state_summary')
+    owner:
+      name: HNemrawi

@@ -5,12 +5,61 @@ models:
     description: >
       One row per complaint. Response-classification logic (timeliness, relief,
       response bucket) defined once for every downstream mart. Ephemeral — inlined
-      as a CTE into consumers; tests live on fct_complaints, which materializes
-      this logic.
+      as a CTE into consumers; the classification columns are tested on
+      fct_complaints, which materializes this logic.
     columns:
       - name: complaint_id
-        description: "Natural key of the complaint, passed through from staging."
+        description: >
+          Natural key of the complaint, passed through from staging. The grain —
+          and fct_complaints inner-joins on it, so a duplicate here would fan out
+          the entire fact table. Tested at the origin rather than only downstream:
+          the fact's row-count checkpoint would catch the fan-out, but this names
+          the cause.
+        data_tests: [unique, not_null]
       - name: response_bucket
         description: "Ordered classification of company_response; first match wins."
       - name: days_to_company
         description: "Days between receipt and forwarding to the company. Negative or null values possible in raw data."
+
+  - name: int_companies__canonical_names
+    description: >
+      One row per raw company name, mapped to the canonical brand name shown to
+      humans. The single definition of canonicalisation: dim_company groups it to
+      build the surrogate key, fct_complaints joins it to look that key up.
+      Ephemeral — inlined as a CTE into both consumers.
+    columns:
+      - name: company_name_raw
+        description: >
+          Raw company string, verbatim from staging. The grain, and the column
+          fct_complaints joins on — so uniqueness here is what stops every
+          complaint from fanning out.
+        data_tests: [unique, not_null]
+      - name: company_name
+        description: "Canonical brand name. The input to dim_company's surrogate key."
+        data_tests: [not_null]
+
+  - name: int_dates__spine
+    description: >
+      One row per calendar day from var('start_date') up to and including today,
+      with no gaps. A pure dbt_utils.date_spine call — the only model in the
+      project with no SQL of its own, and the only one with no ref() or source()
+      at all, because the macro generates its rows from a var rather than reading
+      a table. Ephemeral: exactly one consumer, dim_date. Note that promoting it
+      to a view would not reduce recomputation — a view re-executes per query
+      just as an ephemeral CTE does — so only a table would, and at 2,409 rows
+      that is not worth it.
+      Uses var('start_date'), the same var staging filters on, so ONE definition
+      of the project's window feeds both the fact and the spine. Hardcoding a
+      date here would drift silently and surface as missing dashboard rows rather
+      than as an error.
+    columns:
+      - name: date_day
+        description: >
+          The day, as a DATE. Tested here as well as on dim_date deliberately:
+          the spine is where these rows are generated, so a failure here points
+          at spine generation, while the same test on dim_date protects the
+          object consumers actually join to. date_spine's end_date is EXCLUSIVE,
+          which is why the model passes current_date + 1 day — a bare
+          current_date silently drops today.
+        data_tests: [unique, not_null]
+

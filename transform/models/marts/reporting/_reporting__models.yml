@@ -1,0 +1,128 @@
+version: 2
+
+models:
+  - name: agg_complaint_trends_monthly
+    # public: this is the dashboard's interface. Declaring access here is what
+    # makes the exposure legitimate — an exposure feeding off protected models is
+    # a governance smell the evaluator flags. Contracts and versions land in
+    # Module 6; access is the cheap, accurate half of that story today.
+    access: public
+    description: >
+      One row per month per product group — dashboard page 1 (Overview). Built
+      by cross-joining dim_date's months against dim_product's groups and LEFT
+      joining the counts, so a month with no complaints for a group still has a
+      row with complaint_count 0. That is the whole reason dim_date exists: a
+      direct `group by month` over the fact can only emit months that have rows,
+      so a trend line silently connects across the gaps and every viewer reads
+      continuous activity where there was none.
+      Scope note for dev: the spine starts at var('start_date') = 2020-01-01
+      while the dev warehouse only holds a recent slice of complaints, so most
+      months here are legitimately zero. In dev those zeros are an artefact of
+      the sampled load, not a claim about the world; in prod, with full history
+      loaded, they are real.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [month_start_date, product_group]
+    columns:
+      - name: month_start_date
+        description: "First day of the month. Part of the grain; joins to dim_date.month_start_date."
+        data_tests: [not_null]
+      - name: year_month
+        description: "YYYY-MM label for the chart axis."
+        data_tests: [not_null]
+      - name: product_group
+        description: "Display group from dim_product. Part of the grain."
+        data_tests: [not_null]
+      - name: display_order
+        description: "Sort order for the group, so the chart legend is stable."
+        data_tests: [not_null]
+      - name: complaint_count
+        description: "Complaints received in the month for the group. Zero, never null."
+        data_tests: [not_null]
+      - name: timely_response_rate
+        description: >
+          Share of complaints answered in time, 0-1. NULL — not 0 — for months
+          with no complaints: a rate over an empty set is undefined, and
+          charting it as 0% would invent a fact the data does not contain.
+      - name: relief_rate
+        description: "Share of complaints closed with relief, 0-1. NULL for empty months, same reason."
+
+  - name: agg_company_scorecard
+    access: public
+    description: >
+      One row per canonical company over the trailing 365 days — dashboard page 2
+      (Companies). Carries company_name as well as the key so the page renders
+      without joining back to dim_company; the rulebook wants the BI layer
+      formatting and filtering, not joining and computing.
+      The window is deliberately relative (current_date - 365), so this model is
+      non-deterministic over time by design. That is correct for a rolling
+      scorecard and is exactly why the Module 2 audit in analyses/ pins its dates
+      instead: a sliding window cannot be compared against a fixed baseline.
+    columns:
+      - name: company_key
+        description: "Surrogate key from dim_company. The grain."
+        data_tests: [unique, not_null]
+      - name: company_name
+        description: "Canonical brand name, denormalised for display."
+        data_tests: [not_null]
+      - name: complaint_count
+        description: "Complaints received in the trailing 365 days."
+        data_tests: [not_null]
+      - name: timely_response_rate
+        description: "Share answered in time, 0-1."
+        data_tests: [not_null]
+      - name: relief_rate
+        description: "Share closed with monetary or non-monetary relief, 0-1."
+        data_tests: [not_null]
+      - name: median_days_to_company
+        description: >
+          Median days from receipt to forwarding. Median rather than mean
+          deliberately: complaint routing has a long tail and a mean would let a
+          handful of stale records define a company's typical response.
+
+  - name: agg_state_summary
+    access: public
+    description: >
+      One row per jurisdiction per product group — dashboard page 3 (Products &
+      states). Cross-joins all 63 dim_state rows against dim_product's groups so
+      the map has a row for every jurisdiction, including the three with no
+      complaints at all; a missing row would render as "no problems here" rather
+      than "no data".
+      ⚠️ EXCLUDES the 1,732 complaints with a null state_code, which cannot be
+      placed on a map. Totals here therefore do NOT reconcile to a project-wide
+      complaint count, and any dashboard showing both must say so.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [state_code, product_group]
+    columns:
+      - name: state_code
+        description: "USPS code from dim_state. Part of the grain."
+        data_tests: [not_null]
+      - name: state_name
+        description: "Display name, denormalised for the map tooltip."
+        data_tests: [not_null]
+      - name: census_region
+        description: "Census region; null for territories and military codes."
+      - name: jurisdiction_type
+        description: "state / district / territory / freely_associated_state / military."
+        data_tests: [not_null]
+      - name: population
+        description: "Census Vintage 2025 resident population. Null where none is published."
+      - name: product_group
+        description: "Display group from dim_product. Part of the grain."
+        data_tests: [not_null]
+      - name: display_order
+        description: "Sort order for the group."
+        data_tests: [not_null]
+      - name: complaint_count
+        description: "Complaints for this jurisdiction and group. Zero, never null."
+        data_tests: [not_null]
+      - name: complaints_per_100k
+        description: >
+          Complaints per 100,000 residents — the only honest way to compare
+          California to Wyoming. NULL wherever dim_state.is_unpopulated is true,
+          because there is no denominator. Note what would happen without that
+          guard: dividing by null yields null anyway, but silently, and nobody
+          reading the model would know whether it meant "no people" or "no data".

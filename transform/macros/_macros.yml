@@ -1,0 +1,21 @@
+version: 2
+
+macros:
+  - name: share_of
+    description: >
+      Share of rows where a boolean flag is true, as a 0-1 double. Wraps
+      avg(case when <flag> then 1.0 else 0.0 end), which is this project's single
+      definition of "rate" — it appears in agg_company_scorecard and
+      agg_complaint_trends_monthly, twice each.
+      Takes a COLUMN NAME, not a SQL fragment. That is the deliberate half of the
+      trade-off: the macro owns the whole expression, so every call site computes
+      the rate identically and a caller cannot smuggle logic in. The cost is that
+      it can only average a boolean.
+      Note the deliberate absence of a zero-denominator guard. There is no
+      division here, and even written as sum(...) / count(*) the denominator could
+      not be zero, because count(*) inside a group by never sees an empty group.
+      A guard would be unreachable code.
+    arguments:
+      - name: flag_column
+        type: string
+        description: "Boolean column to average, table alias included — e.g. 'f.is_timely'."

@@ -2,20 +2,73 @@ version: 2
 
 models:
   - name: stg_cfpb__complaints
-    description: "One row per complaint. Renamed, cast, filtered to the reporting window. The only model that reads the CFPB source."
+    description: >
+      One row per complaint. Renamed, cast, filtered to the reporting window. The
+      only model that reads the CFPB source — the anti-corruption layer, so every
+      standardisation the rest of the project relies on happens here and nowhere
+      else. Columns are listed below in the order the model selects them.
     columns:
       - name: complaint_id
         description: "CFPB-assigned complaint identifier. Primary key."
-        data_tests:
-          - unique
-          - not_null
+        data_tests: [unique, not_null]
       - name: received_date
-        description: "Date the CFPB received the complaint."
+        description: "Date the CFPB received the complaint. Cast from a timestamp-with-timezone raw column."
         data_tests: [not_null]
+      - name: sent_to_company_date
+        description: >
+          Date the CFPB forwarded the complaint to the company. Nullable in the
+          raw feed and can precede received_date, which is why days_to_company
+          downstream is documented as possibly negative rather than tested.
+      - name: product
+        description: "CFPB product taxonomy value. Joins to seed_product_groups and forms half of dim_product's grain."
+      - name: sub_product
+        description: >
+          Finer product classification. Genuinely null for some products — which
+          is why dim_product's surrogate key uses dbt_utils rather than string
+          concatenation, since concatenating a null yields a null key.
+      - name: issue
+        description: "Consumer's issue category, as classified by the CFPB."
+      - name: sub_issue
+        description: "Finer issue classification. Nullable."
+      - name: tags
+        description: "CFPB tag such as 'Older American' or 'Servicemember'. Null for most complaints."
+      - name: company_name_raw
+        description: >
+          Company name exactly as the CFPB records it — the registered legal
+          entity, not the brand. int_companies__canonical_names maps it to a
+          display name; nothing downstream should join on this string directly.
+      - name: state_code
+        description: >
+          Two-letter state or territory code. Null for international and withheld
+          addresses, and for the 1,732 rows where the source carried the literal
+          sentinel 'NONE'. Standardised here: 'NONE' becomes null and 'UNITED
+          STATES MINOR OUTLYING ISLANDS' becomes 'UM'. Deliberately not tested for
+          not_null — the nulls are real and documented, and dim_state is a
+          reference list rather than a data-derived dimension precisely so those
+          rows can be excluded rather than invented.
+      - name: zip_code
+        description: "Consumer's ZIP code, often truncated or withheld by the CFPB. Not used downstream."
       - name: submission_channel
+        description: >
+          How the complaint reached the CFPB. The accepted list includes values
+          absent from the current window (Fax, Email, Web Referral) so the test
+          does not fail the day one appears; accepted_values is case-sensitive.
         data_tests:
           - accepted_values:
               arguments:
                 values: ['Web', 'Phone', 'Referral', 'Postal mail', 'Fax', 'Email', 'Web Referral']
-      - name: state_code
-        description: "Two-letter state or territory code. Null for international and withheld addresses."
+      - name: company_response
+        description: >
+          The company's closing disposition, verbatim. Classified into
+          response_bucket by int_complaints__response_flags; null means no
+          response was recorded, which that model maps to the 'no_response'
+          bucket.
+      - name: company_public_response
+        description: "The company's optional public statement. Not used downstream; retained because dropping source columns is harder to undo than keeping them."
+      - name: is_timely_response
+        description: >
+          Raw 'Yes'/'No' string, not a boolean. Converted to the is_timely boolean
+          in int_complaints__response_flags rather than here, because staging
+          renames and casts but does not interpret.
+      - name: loaded_at
+        description: "Ingest timestamp written by ingest/load_cfpb.py. Backs the source freshness check."

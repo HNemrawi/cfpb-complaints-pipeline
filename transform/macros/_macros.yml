@@ -19,3 +19,18 @@ macros:
       - name: flag_column
         type: string
         description: "Boolean column to average, table alias included — e.g. 'f.is_timely'."
+
+  - name: limit_dev_window
+    description: >
+      Target-aware dev-only filter. Renders a where clause limiting a date column
+      to the last N days when target.name is 'dev'; renders to nothing in every
+      other target, so ci and prod always build against the same query. N comes
+      from var('dev_lookback_days', 90) — forward-declared in dbt_project.yml
+      since Module 1, first consumed here. Verified: dev build processes
+      1,704,219 of 1,915,568 rows (≈11% excluded); dbt compile --target dev vs
+      --target prod differ by exactly this one where clause.
+      Called once, at the bottom of stg_cfpb__complaints.sql, on received_date.
+    arguments:
+      - name: date_column
+        type: string
+        description: "Date column to filter on, e.g. 'received_date'."

@@ -49,3 +49,4 @@ renamed as (
 )
 
 select * from renamed
+{{ limit_dev_window('received_date') }}

@@ -103,6 +103,8 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns: [state_code, product_group]
+            config:
+              enabled : "{{ var('enable_expensive_tests', true) }}"
     columns:
       - name: state_code
         description: "USPS code from dim_state. Part of the grain."

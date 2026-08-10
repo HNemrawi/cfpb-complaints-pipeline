@@ -1,4 +1,10 @@
 -- Grain: one row per state per product group, including combinations with zero complaints.
+
+{% set response_buckets = [
+    'explanation_only', 'in_progress', 'nonmonetary_relief',
+    'monetary_relief', 'other', 'no_response'
+] %}
+
 with complaints as (
 
     select * from {{ ref('fct_complaints') }}
@@ -49,6 +55,9 @@ counted as (
         f.state_code,
         p.product_group,
         count(*)  as complaint_count
+        {%- for bucket in response_buckets %},
+        sum(case when f.response_bucket = '{{ bucket }}' then 1 else 0 end) as {{ bucket }}_count
+        {%- endfor %}
     from complaints f
     inner join products p
         on f.product_key = p.product_key
@@ -77,6 +86,9 @@ final as (
             when s.is_unpopulated then null
             else round(coalesce(c.complaint_count, 0) * 100000.0 / s.population, 2)
         end                             as complaints_per_100k
+        {%- for bucket in response_buckets %},
+        coalesce(c.{{ bucket }}_count, 0)  as {{ bucket }}_count
+        {%- endfor %}
 
     from scaffold s
     left join counted c

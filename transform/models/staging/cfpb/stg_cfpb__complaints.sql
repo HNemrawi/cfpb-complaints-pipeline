@@ -1,8 +1,10 @@
+-- Grain: one row per complaint. The project's only reader of the CFPB source.
 with source as (
 
     select * from {{ source('cfpb', 'complaints') }}
 
-), 
+),
+
 renamed as (
 
     select
@@ -47,3 +49,4 @@ renamed as (
 )
 
 select * from renamed
+{{ limit_dev_window('received_date') }}

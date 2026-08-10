@@ -51,11 +51,11 @@ scaffold as (
 counted as (
 
     select
-        date_trunc('month', f.received_date)::date            as month_start_date,
+        date_trunc('month', f.received_date)::date  as month_start_date,
         p.product_group,
-        count(*)                                              as complaint_count,
-        avg(case when f.is_timely  then 1.0 else 0.0 end)     as timely_response_rate,
-        avg(case when f.got_relief then 1.0 else 0.0 end)     as relief_rate
+        count(*)                                    as complaint_count,
+        {{ share_of('f.is_timely') }}               as timely_response_rate,
+        {{ share_of('f.got_relief') }}              as relief_rate
     from complaints f
     inner join products p
         on f.product_key = p.product_key

@@ -1,0 +1,36 @@
+version: 2
+
+macros:
+  - name: share_of
+    description: >
+      Share of rows where a boolean flag is true, as a 0-1 double. Wraps
+      avg(case when <flag> then 1.0 else 0.0 end), which is this project's single
+      definition of "rate" — it appears in agg_company_scorecard and
+      agg_complaint_trends_monthly, twice each.
+      Takes a COLUMN NAME, not a SQL fragment. That is the deliberate half of the
+      trade-off: the macro owns the whole expression, so every call site computes
+      the rate identically and a caller cannot smuggle logic in. The cost is that
+      it can only average a boolean.
+      Note the deliberate absence of a zero-denominator guard. There is no
+      division here, and even written as sum(...) / count(*) the denominator could
+      not be zero, because count(*) inside a group by never sees an empty group.
+      A guard would be unreachable code.
+    arguments:
+      - name: flag_column
+        type: string
+        description: "Boolean column to average, table alias included — e.g. 'f.is_timely'."
+
+  - name: limit_dev_window
+    description: >
+      Target-aware dev-only filter. Renders a where clause limiting a date column
+      to the last N days when target.name is 'dev'; renders to nothing in every
+      other target, so ci and prod always build against the same query. N comes
+      from var('dev_lookback_days', 90) — forward-declared in dbt_project.yml
+      since Module 1, first consumed here. Verified: dev build processes
+      1,704,219 of 1,915,568 rows (≈11% excluded); dbt compile --target dev vs
+      --target prod differ by exactly this one where clause.
+      Called once, at the bottom of stg_cfpb__complaints.sql, on received_date.
+    arguments:
+      - name: date_column
+        type: string
+        description: "Date column to filter on, e.g. 'received_date'."

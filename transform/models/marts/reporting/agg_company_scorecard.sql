@@ -17,10 +17,10 @@ final as (
     select
         c.company_key,
         c.company_name,
-        count(*)                                             as complaint_count,
-        avg(case when f.is_timely  then 1.0 else 0.0 end)    as timely_response_rate,
-        avg(case when f.got_relief then 1.0 else 0.0 end)    as relief_rate,
-        median(f.days_to_company)                            as median_days_to_company
+        count(*)                        as complaint_count,
+        {{ share_of('f.is_timely') }}   as timely_response_rate,
+        {{ share_of('f.got_relief') }}  as relief_rate,
+        median(f.days_to_company)       as median_days_to_company
     from complaints f
     inner join companies c
         on f.company_key = c.company_key

@@ -62,4 +62,3 @@ models:
           which is why the model passes current_date + 1 day — a bare
           current_date silently drops today.
         data_tests: [unique, not_null]
-

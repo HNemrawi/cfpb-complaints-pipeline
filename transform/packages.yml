@@ -1,4 +1,11 @@
+# Package policy. The version range is policy; package-lock.yml records the
+# resolution. Each entry audited 2026-08-06 against four questions: does it ship
+# models, how does it materialize them, can it be contained, what does it pin.
+
 packages:
+  # Macro-only — 0 models, so zero warehouse footprint. Three macros are actually
+  # called: generate_surrogate_key (dim_company, dim_product), date_spine
+  # (int_dates__spine), unique_combination_of_columns (two grain tests).
   - package: dbt-labs/dbt_utils
     version: [">=1.3.0", "<2.0.0"]
 
@@ -7,5 +14,28 @@ packages:
   # records the resolution. Pinned to the current major: an upper bound of
   # "<1.0.0" resolved to 0.14.3 and dbt reported 1.3.4 was available — a
   # too-conservative ceiling keeps you on an old major silently.
+  #
+  # NOT macro-only: 48 models, which on duckdb build as 44 tables + 4 views.
+  # That is why dbt_project.yml gives it +schema: dbt_project_evaluator and
+  # +enabled: false by default. require-dbt-version [">=1.10.6", "<3.0.0"].
   - package: dbt-labs/dbt_project_evaluator
     version: [">=1.3.0", "<2.0.0"]
+
+# Considered and declined. Revisit at the module named.
+#
+#   codegen          Generates model and source YAML. No job today: all 75
+#                    columns across 12 models are already documented by hand,
+#                    and regenerating would swap real descriptions for empty
+#                    ones. MODULE 6 — contracts need a data_type per column.
+#
+#   audit_helper     Compares two relations column by column. Needs two
+#                    relations of matching shape, which Module 2's audit never
+#                    had (its "before" side is raw CFPB data under different
+#                    column names), so that was hand-written SQL. MODULE 4 —
+#                    full-refresh vs incremental fct_complaints, 1.9M x 20.
+#
+#   dbt_expectations Distribution and row-count assertions. MODULE 5.
+#
+#   elementary       Anomaly detection and an observability report. Ships models
+#                    and its own schema; nothing here needs it. Declined
+#                    outright, not deferred.

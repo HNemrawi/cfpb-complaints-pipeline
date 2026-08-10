@@ -12,7 +12,7 @@ An end-to-end analytics pipeline over the [CFPB Consumer Complaint Database](htt
 |---|---|---|
 | 1 | Foundations — ingest, sources, staging | ✅ done |
 | 2 | Modeling — dimensional marts | ✅ done |
-| 3 | Jinja, macros & packages | not started |
+| 3 | Jinja, macros & packages | 🚧 in progress |
 | 4 | Incremental & snapshots | not started |
 | 5 | Testing | not started |
 | 6 | Governance & documentation | not started |
@@ -21,20 +21,23 @@ An end-to-end analytics pipeline over the [CFPB Consumer Complaint Database](htt
 ## The star schema
 
 Complaints land in one fact table surrounded by four conformed dimensions, with three
-aggregates built one-per-dashboard-page. `dbt build` is green at **92 nodes, 0 warnings** —
-12 models, 3 seeds, 79 data tests, 1 exposure. The whole warehouse is 13 objects: these 12
+aggregates built one-per-dashboard-page. `dbt build` is green at **97 nodes, 0 warnings** —
+12 models, 3 seeds, 85 data tests, 1 exposure. The whole warehouse is 13 objects: these 12
 plus the raw source table.
 
 | Model | Grain | Rows |
 |---|---|---|
 | `fct_complaints` | one row per complaint | 1,915,568 |
 | `dim_company` | one row per canonical company | 2,554 |
-| `dim_date` | one row per calendar day | 2,409 |
+| `dim_date` | one row per calendar day | 2,410 † |
 | `dim_product` | one row per product / sub-product | 55 |
 | `dim_state` | one row per jurisdiction | 63 |
 | `agg_complaint_trends_monthly` | month × product group | 560 |
 | `agg_company_scorecard` | company, trailing 365 days | 2,554 |
 | `agg_state_summary` | jurisdiction × product group | 441 |
+
+† `dim_date` grows by one row per day: the spine runs to `current_date` inclusive, so this
+figure is correct as of 2026-08-06 and stale by construction thereafter.
 
 `fct_complaints` matches `stg_cfpb__complaints` row for row — the check that proves no
 dimension join fanned out and no inner join dropped rows.
@@ -57,9 +60,10 @@ being collapsed by `seed_company_name_overrides` — the fix working, not a regr
 ## dbt_project_evaluator findings
 
 `dbt_project_evaluator` is a **linter, and it is off by default**. Unlike `dbt_utils`, which
-ships only macros and materialises nothing, the evaluator ships ~48 models — and on DuckDB the
-package materialises them as tables. Left enabled, every `dbt build` drops 48 objects into the
-same schema as the real project, sharing `stg_`/`int_`/`fct_` prefixes. So it runs on demand:
+ships only macros and materialises nothing (0 models), the evaluator ships 48 models — and on
+DuckDB the package materialises 44 of them as tables and 4 as views. Left enabled, every
+`dbt build` drops 48 objects into the same schema as the real project, sharing
+`stg_`/`int_`/`fct_` prefixes. So it runs on demand:
 
 ```
 dbt build --select package:dbt_project_evaluator dbt_project_evaluator_exceptions \
